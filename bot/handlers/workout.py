@@ -4,7 +4,10 @@
   /done — отметить тренировку выполненной
   callback: start_workout, skip_workout, generate_workout, log_ex
 """
+import base64
+import json
 import logging
+from urllib.parse import urlencode
 
 from aiogram import Router, F
 from aiogram.filters import Command
@@ -51,6 +54,15 @@ def _workout_to_dict(workout) -> dict:
             for e in workout.exercises
         ],
     }
+
+
+def _build_tma_workout_url(workout) -> str:
+    """Собирает WebApp URL с base64 JSON данными тренировки."""
+    workout_data = _workout_to_dict(workout)
+    encoded_data = base64.b64encode(json.dumps(workout_data).encode()).decode()
+    query = urlencode({"startapp": encoded_data})
+    separator = "&" if "?" in settings.TMA_URL else "?"
+    return f"{settings.TMA_URL}{separator}{query}"
 
 
 def _require_user(db, telegram_id: int) -> bool:
@@ -117,8 +129,9 @@ async def _show_workout(target: Message, user_id: int, edit: bool = False) -> No
     gym_lon = gym.get("gym_lon")
 
     if workout.status == "planned":
+        app_url = _build_tma_workout_url(workout)
         kb = get_workout_keyboard(
-            workout.id, settings.TMA_URL, _workout_to_dict(workout),
+            workout.id, app_url,
             gym_lat=gym_lat, gym_lon=gym_lon,
         )
     else:
@@ -180,10 +193,11 @@ async def cb_generate_workout(callback: CallbackQuery) -> None:
     )
     db = get_db()
     gym = _get_user_gym(db, callback.from_user.id)
+    app_url = _build_tma_workout_url(workout)
     await callback.message.edit_text(
         text,
         reply_markup=get_workout_keyboard(
-            workout.id, settings.TMA_URL, _workout_to_dict(workout),
+            workout.id, app_url,
             gym_lat=gym.get("gym_lat"), gym_lon=gym.get("gym_lon"),
         ),
     )
