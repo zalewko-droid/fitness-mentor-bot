@@ -1,0 +1,41 @@
+# Секреты
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyo
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# Виртуальное окружение
+venv/
+.venv/
+env/
+.env/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Тесты / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Логи
+*.log
+logs/
+
+# Временные файлы
+*.tmp
+*.bak
