@@ -9,11 +9,15 @@ def get_workout_keyboard(
     workout_id: int,
     tma_url: str,
     workout_data: dict | None = None,
+    gym_lat: float | None = None,
+    gym_lon: float | None = None,
 ) -> InlineKeyboardMarkup:
     """
     Клавиатура для карточки тренировки:
     [▶️ Начать | ⏭ Пропустить]
     [📱 Открыть в App]
+    [🗺 Маршрут до зала]  ← только если есть координаты зала
+    [⬅️ Меню]
 
     Если передан workout_data, URL кнопки App получает base64-encoded JSON
     в параметре tgWebAppStartParam.
@@ -26,29 +30,40 @@ def get_workout_keyboard(
     else:
         app_url = tma_url
 
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="▶️ Начать тренировку",
-                    callback_data=f"start_workout:{workout_id}",
-                ),
-                InlineKeyboardButton(
-                    text="⏭ Пропустить",
-                    callback_data=f"skip_workout:{workout_id}",
-                ),
-            ],
-            [
-                InlineKeyboardButton(
-                    text="📱 Открыть в App",
-                    web_app=WebAppInfo(url=app_url),
-                ),
-            ],
-            [
-                InlineKeyboardButton(text="⬅️ Меню", callback_data="main_menu"),
-            ],
-        ]
-    )
+    rows = [
+        [
+            InlineKeyboardButton(
+                text="▶️ Начать тренировку",
+                callback_data=f"start_workout:{workout_id}",
+            ),
+            InlineKeyboardButton(
+                text="⏭ Пропустить",
+                callback_data=f"skip_workout:{workout_id}",
+            ),
+        ],
+        [
+            InlineKeyboardButton(
+                text="📱 Открыть в App",
+                web_app=WebAppInfo(url=app_url),
+            ),
+        ],
+    ]
+
+    if gym_lat and gym_lon:
+        rows.append([
+            InlineKeyboardButton(
+                text="🗺 Маршрут до зала",
+                url=f"https://2gis.ru/routeSearch/to/{gym_lon},{gym_lat}",
+            ),
+            InlineKeyboardButton(
+                text="📍 Открыть в 2ГИС",
+                url=f"https://2gis.kz/astana/geo/{gym_lon},{gym_lat}",
+            ),
+        ])
+
+    rows.append([InlineKeyboardButton(text="⬅️ Меню", callback_data="main_menu")])
+
+    return InlineKeyboardMarkup(inline_keyboard=rows)
 
 
 def get_exercise_log_keyboard(workout_id: int, exercise_id: int) -> InlineKeyboardMarkup:

@@ -17,6 +17,9 @@ from bot.database import get_db
 from bot.services.notification_service import (
     get_users_with_workouts_today,
     build_notification_message,
+    build_map_url,
+    build_route_url,
+    build_2gis_url,
 )
 
 if TYPE_CHECKING:
@@ -64,12 +67,32 @@ async def _send_workout_reminders(bot: "Bot") -> None:
                 continue
 
             msg = build_notification_message(item, user_data)
+            gym_lat = user_data.get("gym_lat")
+            gym_lon = user_data.get("gym_lon")
+
             await bot.send_message(
                 chat_id=telegram_id,
                 text=msg,
                 parse_mode="HTML",
                 disable_web_page_preview=False,
             )
+
+            if gym_lat and gym_lon:
+                try:
+                    caption = (
+                        f"🗺 <a href='{build_route_url(gym_lat, gym_lon)}'>Маршрут до зала</a>"
+                        f"  ·  "
+                        f"📍 <a href='{build_2gis_url(gym_lat, gym_lon)}'>Открыть в 2ГИС</a>"
+                    )
+                    await bot.send_photo(
+                        chat_id=telegram_id,
+                        photo=build_map_url(gym_lat, gym_lon),
+                        caption=caption,
+                        parse_mode="HTML",
+                    )
+                except Exception as map_err:
+                    logger.warning(f"Не удалось отправить карту {telegram_id}: {map_err}")
+
             logger.info(f"Уведомление отправлено: {telegram_id}")
         except Exception as e:
             logger.error(f"Ошибка отправки уведомления пользователю: {e}")

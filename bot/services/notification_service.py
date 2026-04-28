@@ -1,6 +1,6 @@
 """
 Сервис уведомлений.
-Формирует тексты напоминаний о тренировках с 2GIS deep-link.
+Формирует тексты напоминаний о тренировках с 2GIS deep-link и Yandex статическими картами.
 """
 import logging
 from datetime import date
@@ -8,6 +8,27 @@ from datetime import date
 from bot.database import get_db
 
 logger = logging.getLogger(__name__)
+
+
+# ── Map / route helpers ───────────────────────────────────────────────────────
+
+def build_route_url(gym_lat: float, gym_lon: float) -> str:
+    """2GIS deep-link для маршрута до зала."""
+    return f"https://2gis.ru/routeSearch/to/{gym_lon},{gym_lat}"
+
+
+def build_2gis_url(gym_lat: float, gym_lon: float) -> str:
+    """2GIS ссылка на точку на карте."""
+    return f"https://2gis.kz/astana/geo/{gym_lon},{gym_lat}"
+
+
+def build_map_url(gym_lat: float, gym_lon: float) -> str:
+    """Yandex Static Maps URL (бесплатно, без ключа)."""
+    return (
+        f"https://static-maps.yandex.ru/1.x/"
+        f"?ll={gym_lon},{gym_lat}&z=15&size=600,300&l=map"
+        f"&pt={gym_lon},{gym_lat},pm2rdm"
+    )
 
 
 async def get_users_with_workouts_today() -> list[dict]:
@@ -60,10 +81,11 @@ def build_notification_message(workout: dict, user: dict) -> str:
         f"🏋️ Твой зал: {gym_name}\n"
     )
 
-    # Добавляем 2GIS deep-link если есть координаты
     if gym_lat and gym_lon:
-        gis_url = f"https://2gis.ru/routeSearch/to/{gym_lon},{gym_lat}/from/my_location"
-        msg += f"\n📍 <a href='{gis_url}'>Маршрут в 2GIS</a>"
+        msg += (
+            f"\n📍 <a href='{build_route_url(gym_lat, gym_lon)}'>Маршрут в 2GIS</a>  "
+            f"· <a href='{build_2gis_url(gym_lat, gym_lon)}'>Открыть в 2ГИС</a>"
+        )
 
     msg += "\n\n💪 Ты справишься!"
     return msg

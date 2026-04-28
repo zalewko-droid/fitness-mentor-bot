@@ -26,6 +26,7 @@ from bot.services.workout_service import (
     log_exercise,
 )
 from bot.services.obsidian_service import sync_workout_to_obsidian
+from bot.services.notification_service import build_map_url, build_route_url, build_2gis_url
 
 logger = logging.getLogger(__name__)
 router = Router()
@@ -67,6 +68,21 @@ def _require_user(db, telegram_id: int) -> bool:
         return False
 
 
+def _get_user_gym(db, telegram_id: int) -> dict:
+    """Возвращает gym_lat, gym_lon, gym_name пользователя."""
+    try:
+        resp = (
+            db.table("users")
+            .select("gym_lat, gym_lon, gym_name")
+            .eq("telegram_id", telegram_id)
+            .maybe_single()
+            .execute()
+        )
+        return resp.data or {}
+    except Exception:
+        return {}
+
+
 async def _show_workout(target: Message, user_id: int, edit: bool = False) -> None:
     """Универсальная функция вывода карточки тренировки."""
     db = get_db()
@@ -96,8 +112,15 @@ async def _show_workout(target: Message, user_id: int, edit: bool = False) -> No
         f"🏋️ Упражнений: {len(workout.exercises)}"
     )
 
+    gym = _get_user_gym(db, user_id)
+    gym_lat = gym.get("gym_lat")
+    gym_lon = gym.get("gym_lon")
+
     if workout.status == "planned":
-        kb = get_workout_keyboard(workout.id, settings.TMA_URL, _workout_to_dict(workout))
+        kb = get_workout_keyboard(
+            workout.id, settings.TMA_URL, _workout_to_dict(workout),
+            gym_lat=gym_lat, gym_lon=gym_lon,
+        )
     else:
         kb = get_main_menu()
 
@@ -105,6 +128,21 @@ async def _show_workout(target: Message, user_id: int, edit: bool = False) -> No
         await target.edit_text(text, reply_markup=kb)
     else:
         await target.answer(text, reply_markup=kb)
+        # Отправляем статическую карту зала при первом показе тренировки
+        if workout.status == "planned" and gym_lat and gym_lon:
+            try:
+                caption = (
+                    f"🗺 <a href='{build_route_url(gym_lat, gym_lon)}'>Маршрут до зала</a>"
+                    f"  ·  "
+                    f"📍 <a href='{build_2gis_url(gym_lat, gym_lon)}'>Открыть в 2ГИС</a>"
+                )
+                await target.answer_photo(
+                    photo=build_map_url(gym_lat, gym_lon),
+                    caption=caption,
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                logger.warning(f"_show_workout: не удалось отправить карту: {e}")
 
 
 # ── /workout ──────────────────────────────────────────────────────────────────
@@ -140,9 +178,14 @@ async def cb_generate_workout(callback: CallbackQuery) -> None:
         f"{workout.format_exercises()}\n\n"
         f"🏋️ Упражнений: {len(workout.exercises)}"
     )
+    db = get_db()
+    gym = _get_user_gym(db, callback.from_user.id)
     await callback.message.edit_text(
         text,
-        reply_markup=get_workout_keyboard(workout.id, settings.TMA_URL, _workout_to_dict(workout)),
+        reply_markup=get_workout_keyboard(
+            workout.id, settings.TMA_URL, _workout_to_dict(workout),
+            gym_lat=gym.get("gym_lat"), gym_lon=gym.get("gym_lon"),
+        ),
     )
 
 
